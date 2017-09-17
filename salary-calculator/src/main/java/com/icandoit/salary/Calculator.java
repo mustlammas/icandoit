@@ -1,18 +1,21 @@
 package com.icandoit.salary;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.*;
 import java.time.temporal.ChronoField;
+import java.util.List;
 
 /**
  * Calculates daily salary based on the hours worked. The total salary consists of three parts: normal hourly wage,
  * evening wage and overtime pay.
- *
+ * <p>
  * Normal working hours are 06:00 - 18:00, 8 hours per day.
  * Evening hours are 18:00 - 06:00.
  * Overtime pay has three levels:
- *      1. First two hours: 1.25 x normal wage
- *      1. Next two hours: 1.5 x normal wage
- *      1. After four hours: 2 x normal wage
+ * 1. First two hours: 1.25 x normal wage
+ * 1. Next two hours: 1.5 x normal wage
+ * 1. After four hours: 2 x normal wage
  */
 public class Calculator {
 
@@ -23,13 +26,43 @@ public class Calculator {
     private static final int EVENING_TIME_END_MINUTE = 6 * 60;
     private static final int MINUTES_IN_DAY = 24 * 60;
 
-    public static double calculateSalary(Instant start, Instant end) {
-        validateArguments(start, end);
-        double hours = getHours(start, end);
-        double normalSalary = calculateSalaryForNormalHours(hours);
-        double eveningHoursSalary = calculateSalaryForEveningHours(getEveningHours(start, end));
-        double overtimeSalary = calculateOvertimeSalary(hours);
-        return normalSalary + eveningHoursSalary + overtimeSalary;
+    public static double calculateSalary(List<TimeRecord> shifts) {
+        double eveningHours = getEveningHours(shifts);
+        double totalHours = getHours(shifts);
+        double normalHours = totalHours - eveningHours;
+        double normalSalary = calculateSalaryForNormalHours(normalHours);
+        double eveningHoursSalary = calculateSalaryForEveningHours(eveningHours);
+        double overtimeSalary = calculateOvertimeSalary(totalHours);
+        double totalSalary = normalSalary + eveningHoursSalary + overtimeSalary;
+        return round(totalSalary);
+    }
+
+    private static double round(double value) {
+        BigDecimal bigDecimal = new BigDecimal(value);
+        bigDecimal = bigDecimal.setScale(2, RoundingMode.HALF_UP);
+        return bigDecimal.doubleValue();
+    }
+
+    private static double getHours(List<TimeRecord> shifts) {
+        double hours = 0;
+        for (TimeRecord shift : shifts) {
+            hours += getHours(shift.getStart(), shift.getEnd());
+        }
+
+        return hours;
+    }
+
+    protected static double getHours(Instant start, Instant end) {
+        return Duration.between(start, end).toMinutes() / 60.0;
+    }
+
+    private static double getEveningHours(List<TimeRecord> shifts) {
+        double hours = 0;
+        for (TimeRecord shift : shifts) {
+            hours += getEveningHours(shift.getStart(), shift.getEnd());
+        }
+
+        return hours;
     }
 
     private static double calculateSalaryForNormalHours(double hours) {
@@ -56,17 +89,6 @@ public class Calculator {
         } else {
             return 0;
         }
-    }
-
-    private static void validateArguments(Instant start, Instant end) {
-        if (start.isAfter(end)) {
-            throw new IllegalArgumentException("Start date must be earlier than end date. " +
-                    "Start date: '" + start + "', end date: '" + end + "'");
-        }
-    }
-
-    protected static double getHours(Instant start, Instant end) {
-        return Duration.between(start, end).toMinutes() / 60.0;
     }
 
     /**
